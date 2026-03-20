@@ -1,0 +1,30 @@
+# Build artifacts
+/_build/
+/deps/
+
+# Coverage
+/cover/
+
+# Dialyzer PLT files - do NOT commit these
+/priv/plts/
+*.plt
+*.plt.hash
+
+# Generated files
+/doc/
+erl_crash.dump
+
+# Temp artifacts
+/tmp/
+*.ez
+jido_ecto-*.tar
+
+# Editor/IDE
+.elixir_ls/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

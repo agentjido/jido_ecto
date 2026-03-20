@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality (Elixir 1.19 / OTP 28)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+            priv/plts
+          key: ${{ runner.os }}-mix-quality-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-quality-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run quality checks
+        run: mix quality
+
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        elixir: ["1.18", "1.19"]
+        otp: ["27", "28"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-test-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-test-${{ matrix.elixir }}-${{ matrix.otp }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run tests
+        run: mix test
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-coveralls-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-coveralls-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run coverage and enforce threshold
+        run: |
+          set -euo pipefail
+          output="$(mix coveralls)"
+          printf '%s\n' "$output"
+
+          total="$(printf '%s\n' "$output" | awk '/^\[TOTAL\]/ {gsub("%", "", $2); print $2}')"
+          threshold="90"
+
+          if [ -z "$total" ]; then
+            echo "Failed to parse total coverage from ExCoveralls output."
+            exit 1
+          fi
+
+          if ! awk -v total="$total" -v threshold="$threshold" 'BEGIN { exit !(total + 0 >= threshold + 0) }'; then
+            echo "Coverage ${total}% is below required threshold ${threshold}%."
+            exit 1
+          fi
+
+          echo "Coverage ${total}% meets threshold ${threshold}%."
