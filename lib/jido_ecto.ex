@@ -2,9 +2,15 @@ defmodule Jido.Ecto do
   @moduledoc """
   Ecto-backed storage package for Jido.
 
-  This repository is currently in its package-bootstrap phase. The MVP will add
-  an Ecto-backed `Jido.Storage` adapter and the persistence plumbing required
-  for `Jido.Persist` hibernate and thaw flows.
+  `jido_ecto` provides:
+
+  - `Jido.Ecto.Storage` for `Jido.Storage`
+  - `Jido.Ecto.Migrations` for provisioning the required tables
+
+  The adapter stores checkpoints as opaque Erlang terms and persists thread
+  journals as ordered entry rows plus thread metadata. That keeps the storage
+  semantics aligned with `Jido.Storage` and allows `Jido.Persist` to hibernate
+  and thaw agents without a separate persistence adapter module.
 
   ## Examples
 

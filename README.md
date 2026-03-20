@@ -4,21 +4,21 @@
 
 ## Alpha Status
 
-`jido_ecto` is still pre-MVP. This initial repository setup establishes the
-package-quality baseline, contributor docs, CI, and release automation before
-the Ecto adapter implementation lands.
+`jido_ecto` now ships a working `Jido.Ecto.Storage` adapter and migration
+helper, but it is still early and should be treated as alpha-quality.
 
 - Do not rely on this package in production yet.
-- The initial MVP will target `Jido.Storage` and `Jido.Persist` integration.
-- The runtime adapter API may change while the schema and transaction model are
-  finalized.
+- The schema shape and installation flow may still change.
+- The adapter currently focuses on correctness and Jido compatibility before
+  broader operational tuning.
 
-## Planned Features
+## Features
 
 - `Jido.Ecto.Storage` implementing `Jido.Storage`
-- Ecto-backed checkpoints and thread journals
+- `Jido.Ecto.Migrations.create_storage_tables/1` for provisioning storage tables
+- Ecto-backed checkpoints and ordered thread journals
 - `Jido.Persist` compatibility for hibernate/thaw flows
-- Explicit optimistic concurrency for thread appends
+- Optimistic concurrency for thread appends via `:expected_rev`
 
 ## Installation
 
@@ -38,14 +38,28 @@ Then fetch dependencies:
 mix deps.get
 ```
 
+## Database Migration
+
+Create the required tables in one of your repo migrations:
+
+```elixir
+defmodule MyApp.Repo.Migrations.CreateJidoStorage do
+  use Ecto.Migration
+
+  def change do
+    require Jido.Ecto.Migrations
+    Jido.Ecto.Migrations.create_storage_tables()
+  end
+end
+```
+
 ## Installation via Igniter
 
 `jido_ecto` does not yet provide an Igniter installer module.
 
 ## Quick Start
 
-The adapter implementation is not in place yet. The MVP is intended to support
-usage shaped like this:
+Configure Jido to use the Ecto storage adapter:
 
 ```elixir
 defmodule MyApp.Jido do
@@ -55,11 +69,14 @@ defmodule MyApp.Jido do
 end
 ```
 
-And for explicit persistence flows:
+The same storage config works with `Jido.Persist`:
 
 ```elixir
 Jido.Persist.hibernate({Jido.Ecto.Storage, repo: MyApp.Repo}, agent)
 ```
+
+Thread metadata is stored only when a thread is first created. Subsequent
+appends preserve the existing metadata and advance `rev` atomically.
 
 ## Development
 

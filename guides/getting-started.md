@@ -1,11 +1,7 @@
 # Getting Started with Jido Ecto
 
-`jido_ecto` is the package scaffold for an Ecto-backed Jido storage adapter.
-
-## Current Status
-
-This guide describes the intended integration shape. The runtime adapter is not
-implemented yet.
+`jido_ecto` provides an Ecto-backed `Jido.Storage` adapter and a migration
+helper for provisioning the required tables.
 
 ## 1. Add dependency
 
@@ -19,14 +15,25 @@ def deps do
 end
 ```
 
-## 2. Plan an Ecto repo
+## 2. Add the storage tables
 
-The MVP will target an `Ecto.Repo` that owns the tables for checkpoints and
-thread journal entries.
+Create a repo migration that provisions the checkpoint, thread, and thread
+entry tables:
+
+```elixir
+defmodule MyApp.Repo.Migrations.CreateJidoStorage do
+  use Ecto.Migration
+
+  def change do
+    require Jido.Ecto.Migrations
+    Jido.Ecto.Migrations.create_storage_tables()
+  end
+end
+```
 
 ## 3. Configure Jido storage
 
-The intended integration shape is:
+Point your Jido instance at an `Ecto.Repo`:
 
 ```elixir
 defmodule MyApp.Jido do
@@ -38,8 +45,14 @@ end
 
 ## 4. Persist with Jido.Persist
 
-Explicit persistence flows are expected to work with the same storage config:
+Explicit persistence flows use the same storage tuple:
 
 ```elixir
 Jido.Persist.hibernate({Jido.Ecto.Storage, repo: MyApp.Repo}, agent)
 ```
+
+## 5. Concurrency semantics
+
+`append_thread/3` supports `:expected_rev` for optimistic concurrency. When the
+expected revision does not match the stored revision, the adapter returns
+`{:error, :conflict}`.

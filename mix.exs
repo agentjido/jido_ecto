@@ -67,12 +67,14 @@ defmodule JidoEcto.MixProject do
     [
       # Runtime
       {:ecto, "~> 3.13"},
+      {:ecto_sql, "~> 3.13"},
       {:jido, "~> 2.1"},
 
       # Dev/Test quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:doctor, "~> 0.21", only: :dev, runtime: false},
+      {:ecto_sqlite3, "~> 0.21", only: :test},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test]},
       {:git_hooks, "~> 0.8", only: [:dev, :test], runtime: false},
