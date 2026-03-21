@@ -40,7 +40,17 @@ Then fetch dependencies:
 mix deps.get
 ```
 
-## Database Migration
+Your host app must already have:
+
+- an `Ecto.Repo`
+- `:ecto_sql`
+- the database adapter for that repo, for example `:postgrex` or `:ecto_sqlite3`
+
+`jido_ecto` uses your existing repo. It does not create or supervise one.
+
+## Setup
+
+### 1. Create the storage migration
 
 Create the required tables in one of your repo migrations:
 
@@ -58,13 +68,24 @@ end
 `version: 1` is required so consuming apps freeze the emitted DDL in their own
 migration history.
 
-## Installation via Igniter
+If you want the tables in a database prefix or schema:
 
-`jido_ecto` does not yet provide an Igniter installer module.
+```elixir
+def change do
+  require Jido.Ecto.Migrations
+  Jido.Ecto.Migrations.create_storage_tables(version: 1, prefix: "jido")
+end
+```
 
-## Quick Start
+### 2. Run the migration
 
-Configure Jido to use the Ecto storage adapter:
+```bash
+mix ecto.migrate
+```
+
+### 3. Configure Jido storage
+
+Point Jido at your repo:
 
 ```elixir
 defmodule MyApp.Jido do
@@ -74,11 +95,84 @@ defmodule MyApp.Jido do
 end
 ```
 
-The same storage config works with `Jido.Persist`:
+You can also keep the tuple in config and pass it anywhere Jido expects a
+storage adapter:
 
 ```elixir
-Jido.Persist.hibernate({Jido.Ecto.Storage, repo: MyApp.Repo}, agent)
+config :my_app, :jido_storage, {Jido.Ecto.Storage, repo: MyApp.Repo}
 ```
+
+### 4. Use it with `Jido.Persist`
+
+The same storage tuple works for explicit persistence flows:
+
+```elixir
+storage = {Jido.Ecto.Storage, repo: MyApp.Repo}
+
+:ok = Jido.Persist.hibernate(storage, agent)
+{:ok, restored_agent} = Jido.Persist.thaw(storage, MyAgent, agent.id)
+```
+
+## Setup Reference
+
+### Tables created by `version: 1`
+
+- `jido_checkpoints`
+- `jido_threads`
+- `jido_thread_entries`
+
+`jido_threads` stores the latest serialized thread snapshot. `jido_thread_entries`
+remains the ordered append-only journal.
+
+### Adapter options
+
+Required:
+
+- `:repo` - your `Ecto.Repo` module
+
+Optional query and transaction passthrough options:
+
+- `:prefix`
+- `:timeout`
+- `:log`
+- `:telemetry_event`
+- `:telemetry_options`
+
+`append_thread/3` also accepts:
+
+- `:expected_rev` - optimistic concurrency guard
+- `:metadata` - initial metadata for a new thread
+
+### Minimal smoke test
+
+After migrating, confirm the adapter works against your repo:
+
+```elixir
+storage = [repo: MyApp.Repo]
+
+{:ok, thread} =
+  Jido.Ecto.Storage.append_thread(
+    "thread-1",
+    [%{kind: :note, payload: %{message: "hello"}}],
+    storage
+  )
+
+{:ok, loaded} = Jido.Ecto.Storage.load_thread("thread-1", storage)
+thread.rev == loaded.rev
+```
+
+## Database Notes
+
+- PostgreSQL and SQLite are exercised in this package's test matrix.
+- The package uses portable Ecto APIs and should work with other SQL adapters
+  that support the schema types used here.
+- Thread appends use optimistic concurrency through `:expected_rev`.
+
+## Installation via Igniter
+
+`jido_ecto` does not yet provide an Igniter installer module.
+
+## Quick Start
 
 Thread metadata is stored only when a thread is first created. Subsequent
 appends preserve the existing metadata and advance `rev` atomically. The thread
