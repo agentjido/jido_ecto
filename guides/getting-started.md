@@ -26,10 +26,13 @@ defmodule MyApp.Repo.Migrations.CreateJidoStorage do
 
   def change do
     require Jido.Ecto.Migrations
-    Jido.Ecto.Migrations.create_storage_tables()
+    Jido.Ecto.Migrations.create_storage_tables(version: 1)
   end
 end
 ```
+
+Pass an explicit schema version so the migration remains reproducible even if
+future package releases add newer storage layouts.
 
 ## 3. Configure Jido storage
 

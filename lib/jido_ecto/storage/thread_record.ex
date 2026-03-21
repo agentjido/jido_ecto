@@ -11,7 +11,8 @@ defmodule Jido.Ecto.Storage.ThreadRecord do
           rev: integer() | nil,
           created_at_ms: integer() | nil,
           updated_at_ms: integer() | nil,
-          metadata: binary() | nil
+          metadata: binary() | nil,
+          entries: binary() | nil
         }
 
   schema "jido_threads" do
@@ -19,5 +20,6 @@ defmodule Jido.Ecto.Storage.ThreadRecord do
     field(:created_at_ms, :integer)
     field(:updated_at_ms, :integer)
     field(:metadata, :binary)
+    field(:entries, :binary)
   end
 end

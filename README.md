@@ -17,8 +17,10 @@ helper, but it is still early and should be treated as alpha-quality.
 - `Jido.Ecto.Storage` implementing `Jido.Storage`
 - `Jido.Ecto.Migrations.create_storage_tables/1` for provisioning storage tables
 - Ecto-backed checkpoints and ordered thread journals
+- Thread snapshots stored alongside the append-only journal for faster loads
 - `Jido.Persist` compatibility for hibernate/thaw flows
 - Optimistic concurrency for thread appends via `:expected_rev`
+- Tested against SQLite and PostgreSQL repos
 
 ## Installation
 
@@ -48,10 +50,13 @@ defmodule MyApp.Repo.Migrations.CreateJidoStorage do
 
   def change do
     require Jido.Ecto.Migrations
-    Jido.Ecto.Migrations.create_storage_tables()
+    Jido.Ecto.Migrations.create_storage_tables(version: 1)
   end
 end
 ```
+
+`version: 1` is required so consuming apps freeze the emitted DDL in their own
+migration history.
 
 ## Installation via Igniter
 
@@ -76,7 +81,9 @@ Jido.Persist.hibernate({Jido.Ecto.Storage, repo: MyApp.Repo}, agent)
 ```
 
 Thread metadata is stored only when a thread is first created. Subsequent
-appends preserve the existing metadata and advance `rev` atomically.
+appends preserve the existing metadata and advance `rev` atomically. The thread
+row stores the latest serialized snapshot, while `jido_thread_entries` remains
+an ordered append-only journal.
 
 ## Development
 

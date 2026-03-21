@@ -77,6 +77,57 @@ jobs:
       - name: Run tests
         run: mix test
 
+  test-postgres:
+    name: Test PostgreSQL (Elixir 1.19 / OTP 28)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: jido_ecto_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jido_ecto_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      JIDO_ECTO_TEST_DB: postgres
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: jido_ecto_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-test-postgres-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-test-postgres-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run PostgreSQL tests
+        run: mix test
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

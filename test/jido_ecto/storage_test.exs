@@ -149,17 +149,8 @@ defmodule Jido.Ecto.StorageTest do
         rev: 1,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(%{})
-      })
-
-    _entry =
-      TestRepo.insert!(%ThreadEntryRecord{
-        thread_id: thread_id,
-        seq: 0,
-        entry_id: "entry-1",
-        at_ms: 1,
-        kind: "note",
-        data: :erlang.term_to_binary(%{bad: :entry})
+        metadata: :erlang.term_to_binary(%{}),
+        entries: :erlang.term_to_binary([%{bad: :entry}])
       })
 
     assert {:error, :invalid_thread_entry} = Storage.load_thread(thread_id, storage_opts)
@@ -180,17 +171,8 @@ defmodule Jido.Ecto.StorageTest do
         rev: 2,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(%{})
-      })
-
-    _entry =
-      TestRepo.insert!(%ThreadEntryRecord{
-        thread_id: thread_id,
-        seq: 0,
-        entry_id: entry.id,
-        at_ms: entry.at,
-        kind: "note",
-        data: :erlang.term_to_binary(entry)
+        metadata: :erlang.term_to_binary(%{}),
+        entries: :erlang.term_to_binary([entry])
       })
 
     assert {:error, :invalid_thread_revision} = Storage.load_thread(thread_id, storage_opts)
@@ -205,7 +187,8 @@ defmodule Jido.Ecto.StorageTest do
         rev: 0,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(:not_a_map)
+        metadata: :erlang.term_to_binary(:not_a_map),
+        entries: :erlang.term_to_binary([])
       })
 
     assert {:error, :invalid_thread_metadata} = Storage.load_thread(thread_id, storage_opts)
@@ -220,25 +203,18 @@ defmodule Jido.Ecto.StorageTest do
         rev: 1,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(%{})
-      })
-
-    _entry =
-      TestRepo.insert!(%ThreadEntryRecord{
-        thread_id: thread_id,
-        seq: 0,
-        entry_id: "entry-1",
-        at_ms: 1,
-        kind: "note",
-        data:
-          :erlang.term_to_binary(%{
-            id: "entry-1",
-            seq: 0,
-            at: 1,
-            kind: :note,
-            payload: %{n: 1},
-            refs: %{}
-          })
+        metadata: :erlang.term_to_binary(%{}),
+        entries:
+          :erlang.term_to_binary([
+            %{
+              id: "entry-1",
+              seq: 0,
+              at: 1,
+              kind: :note,
+              payload: %{n: 1},
+              refs: %{}
+            }
+          ])
       })
 
     assert {:ok, loaded} = Storage.load_thread(thread_id, storage_opts)
@@ -246,9 +222,8 @@ defmodule Jido.Ecto.StorageTest do
     assert entry.payload == %{n: 1}
   end
 
-  test "load_thread rejects mismatched stored entry columns", %{storage_opts: storage_opts} do
+  test "load_thread rejects malformed stored entry snapshots", %{storage_opts: storage_opts} do
     thread_id = unique_id("mismatch-thread")
-    entry = %Entry{id: "entry-1", seq: 0, at: 1, kind: :note, payload: %{}, refs: %{}}
 
     _record =
       TestRepo.insert!(%ThreadRecord{
@@ -256,17 +231,11 @@ defmodule Jido.Ecto.StorageTest do
         rev: 1,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(%{})
-      })
-
-    _entry =
-      TestRepo.insert!(%ThreadEntryRecord{
-        thread_id: thread_id,
-        seq: 0,
-        entry_id: entry.id,
-        at_ms: entry.at,
-        kind: "message",
-        data: :erlang.term_to_binary(entry)
+        metadata: :erlang.term_to_binary(%{}),
+        entries:
+          :erlang.term_to_binary([
+            %{id: "entry-1", seq: 0, at: 1, kind: "message", payload: %{}, refs: %{}}
+          ])
       })
 
     assert {:error, :invalid_thread_entry} = Storage.load_thread(thread_id, storage_opts)
@@ -282,17 +251,8 @@ defmodule Jido.Ecto.StorageTest do
         rev: 1,
         created_at_ms: 1,
         updated_at_ms: 1,
-        metadata: :erlang.term_to_binary(%{})
-      })
-
-    _entry =
-      TestRepo.insert!(%ThreadEntryRecord{
-        thread_id: thread_id,
-        seq: 1,
-        entry_id: entry.id,
-        at_ms: entry.at,
-        kind: "note",
-        data: :erlang.term_to_binary(entry)
+        metadata: :erlang.term_to_binary(%{}),
+        entries: :erlang.term_to_binary([entry])
       })
 
     assert {:error, :invalid_thread_entry} = Storage.load_thread(thread_id, storage_opts)

@@ -74,6 +74,7 @@ defmodule JidoEcto.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:doctor, "~> 0.21", only: :dev, runtime: false},
+      {:postgrex, "~> 0.20", only: :test},
       {:ecto_sqlite3, "~> 0.21", only: :test},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test]},

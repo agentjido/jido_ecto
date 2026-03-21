@@ -5,8 +5,8 @@ defmodule Jido.Ecto.Storage do
   The adapter persists three logical records:
 
   - checkpoints in `jido_checkpoints`
-  - thread metadata in `jido_threads`
-  - ordered thread entries in `jido_thread_entries`
+  - thread state snapshots in `jido_threads`
+  - ordered thread journal entries in `jido_thread_entries`
 
   Create those tables with `Jido.Ecto.Migrations.create_storage_tables/1`.
 
@@ -201,18 +201,19 @@ defmodule Jido.Ecto.Storage do
     with {:ok, state} <- load_thread_state(repo, query_opts, thread_id),
          :ok <- validate_expected_rev(expected_rev, state.rev) do
       prepared_entries = EntryNormalizer.normalize_many(entries, state.rev, now)
+      next_entries = state.entries ++ prepared_entries
       metadata = if state.persisted?, do: state.metadata, else: initial_metadata
 
-      with :ok <- maybe_create_thread_record(repo, query_opts, thread_id, state, prepared_entries, now, metadata),
+      with :ok <- maybe_create_thread_record(repo, query_opts, thread_id, state, next_entries, now, metadata),
            :ok <- insert_thread_entries(repo, query_opts, thread_id, prepared_entries),
-           :ok <- maybe_update_thread_record(repo, query_opts, thread_id, state, prepared_entries, now) do
+           :ok <- maybe_update_thread_record(repo, query_opts, thread_id, state, next_entries, now) do
         reconstruct_thread(
           thread_id,
-          state.rev + length(prepared_entries),
+          length(next_entries),
           state.created_at_ms,
           now,
           metadata,
-          state.entries ++ prepared_entries
+          next_entries
         )
       else
         {:error, :conflict} when is_nil(expected_rev) -> rollback(repo, :retry)
@@ -256,35 +257,29 @@ defmodule Jido.Ecto.Storage do
 
   @spec load_thread_state(module(), keyword(), String.t()) :: {:ok, thread_state()} | {:error, term()}
   defp load_thread_state(repo, query_opts, thread_id) do
-    entries_query =
-      from(e in ThreadEntryRecord,
-        where: e.thread_id == ^thread_id,
-        order_by: [asc: e.seq]
-      )
-
     record = repo.get(ThreadRecord, thread_id, query_opts)
-    entry_rows = repo.all(entries_query, query_opts)
 
-    case {record, entry_rows} do
-      {nil, []} ->
-        now = now_ms()
+    case record do
+      nil ->
+        if thread_entries_exist?(repo, query_opts, thread_id) do
+          {:error, :orphaned_thread_entries}
+        else
+          now = now_ms()
 
-        {:ok,
-         %{
-           rev: 0,
-           created_at_ms: now,
-           updated_at_ms: now,
-           persisted?: false,
-           metadata: %{},
-           entries: []
-         }}
+          {:ok,
+           %{
+             rev: 0,
+             created_at_ms: now,
+             updated_at_ms: now,
+             persisted?: false,
+             metadata: %{},
+             entries: []
+           }}
+        end
 
-      {nil, _rows} ->
-        {:error, :orphaned_thread_entries}
-
-      {%ThreadRecord{} = record, rows} ->
+      %ThreadRecord{} = record ->
         with {:ok, metadata} <- decode_thread_metadata(record.metadata),
-             {:ok, entries} <- decode_thread_entries(rows),
+             {:ok, entries} <- decode_thread_entries_term(record.entries),
              :ok <- validate_thread_revision(record.rev, entries) do
           {:ok,
            %{
@@ -299,23 +294,34 @@ defmodule Jido.Ecto.Storage do
     end
   end
 
+  @spec thread_entries_exist?(module(), keyword(), String.t()) :: boolean()
+  defp thread_entries_exist?(repo, query_opts, thread_id) do
+    query =
+      from(e in ThreadEntryRecord,
+        where: e.thread_id == ^thread_id,
+        select: e.thread_id,
+        limit: 1
+      )
+
+    repo.all(query, query_opts) != []
+  end
+
   @spec maybe_create_thread_record(module(), keyword(), String.t(), thread_state(), [Entry.t()], integer(), map()) ::
           :ok | {:error, :conflict}
-  defp maybe_create_thread_record(repo, query_opts, thread_id, state, prepared_entries, now, metadata) do
+  defp maybe_create_thread_record(repo, query_opts, thread_id, state, entries, now, metadata) do
     if state.persisted? do
       :ok
     else
-      new_rev = state.rev + length(prepared_entries)
-
       case repo.insert_all(
              ThreadRecord,
              [
                %{
                  thread_id: thread_id,
-                 rev: new_rev,
+                 rev: length(entries),
                  created_at_ms: state.created_at_ms,
                  updated_at_ms: now,
-                 metadata: encode_term(metadata)
+                 metadata: encode_term(metadata),
+                 entries: encode_term(entries)
                }
              ],
              Keyword.merge(query_opts, on_conflict: :nothing, conflict_target: [:thread_id])
@@ -328,16 +334,18 @@ defmodule Jido.Ecto.Storage do
 
   @spec maybe_update_thread_record(module(), keyword(), String.t(), thread_state(), [Entry.t()], integer()) ::
           :ok | {:error, :conflict}
-  defp maybe_update_thread_record(repo, query_opts, thread_id, state, prepared_entries, now) do
+  defp maybe_update_thread_record(repo, query_opts, thread_id, state, entries, now) do
     if state.persisted? do
-      new_rev = state.rev + length(prepared_entries)
-
       query =
         from(t in ThreadRecord,
           where: t.thread_id == ^thread_id and t.rev == ^state.rev
         )
 
-      case repo.update_all(query, [set: [rev: new_rev, updated_at_ms: now]], query_opts) do
+      case repo.update_all(
+             query,
+             [set: [rev: length(entries), updated_at_ms: now, entries: encode_term(entries)]],
+             query_opts
+           ) do
         {1, _rows} -> :ok
         {_count, _rows} -> {:error, :conflict}
       end
@@ -381,33 +389,37 @@ defmodule Jido.Ecto.Storage do
   defp validate_thread_revision(rev, entries) when rev == length(entries), do: :ok
   defp validate_thread_revision(_rev, _entries), do: {:error, :invalid_thread_revision}
 
-  @spec decode_thread_entries([%ThreadEntryRecord{}]) :: {:ok, [Entry.t()]} | {:error, term()}
-  defp decode_thread_entries(rows) do
-    rows
+  @spec decode_thread_entries_term(binary()) :: {:ok, [Entry.t()]} | {:error, :invalid_thread_entry}
+  defp decode_thread_entries_term(binary) do
+    with {:ok, decoded} <- decode_term(binary),
+         {:ok, entries} <- normalize_stored_entries(decoded) do
+      {:ok, entries}
+    end
+  end
+
+  @spec normalize_stored_entries(term()) :: {:ok, [Entry.t()]} | {:error, :invalid_thread_entry}
+  defp normalize_stored_entries(entries) when is_list(entries) do
+    entries
     |> Enum.with_index()
-    |> Enum.reduce_while({:ok, []}, fn {%ThreadEntryRecord{} = row, expected_seq}, {:ok, acc} ->
-      case decode_thread_entry(row, expected_seq) do
-        {:ok, entry} -> {:cont, {:ok, [entry | acc]}}
+    |> Enum.reduce_while({:ok, []}, fn {entry, expected_seq}, {:ok, acc} ->
+      with {:ok, normalized} <- normalize_stored_entry(entry),
+           :ok <- validate_entry_seq(normalized, expected_seq) do
+        {:cont, {:ok, [normalized | acc]}}
+      else
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
     |> case do
-      {:ok, entries} -> {:ok, Enum.reverse(entries)}
+      {:ok, normalized_entries} -> {:ok, Enum.reverse(normalized_entries)}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  @spec decode_thread_entry(%ThreadEntryRecord{}, non_neg_integer()) :: {:ok, Entry.t()} | {:error, term()}
-  defp decode_thread_entry(%ThreadEntryRecord{seq: seq}, expected_seq) when seq != expected_seq,
-    do: {:error, :invalid_thread_entry}
+  defp normalize_stored_entries(_other), do: {:error, :invalid_thread_entry}
 
-  defp decode_thread_entry(%ThreadEntryRecord{} = row, _expected_seq) do
-    with {:ok, decoded} <- decode_term(row.data),
-         {:ok, entry} <- normalize_stored_entry(decoded),
-         :ok <- validate_entry_row(row, entry) do
-      {:ok, entry}
-    end
-  end
+  @spec validate_entry_seq(Entry.t(), non_neg_integer()) :: :ok | {:error, :invalid_thread_entry}
+  defp validate_entry_seq(%Entry{seq: seq}, expected_seq) when seq == expected_seq, do: :ok
+  defp validate_entry_seq(_entry, _expected_seq), do: {:error, :invalid_thread_entry}
 
   @spec normalize_stored_entry(term()) :: {:ok, Entry.t()} | {:error, :invalid_thread_entry}
   defp normalize_stored_entry(%Entry{} = entry), do: {:ok, entry}
@@ -419,20 +431,6 @@ defmodule Jido.Ecto.Storage do
   end
 
   defp normalize_stored_entry(_other), do: {:error, :invalid_thread_entry}
-
-  @spec validate_entry_row(%ThreadEntryRecord{}, Entry.t()) :: :ok | {:error, :invalid_thread_entry}
-  defp validate_entry_row(
-         %ThreadEntryRecord{seq: seq, entry_id: entry_id, at_ms: at_ms, kind: kind},
-         %Entry{id: id, seq: seq, at: at, kind: entry_kind}
-       ) do
-    if id == entry_id and at == at_ms and kind == Atom.to_string(entry_kind) do
-      :ok
-    else
-      {:error, :invalid_thread_entry}
-    end
-  end
-
-  defp validate_entry_row(_row, _entry), do: {:error, :invalid_thread_entry}
 
   @spec decode_thread_metadata(binary()) :: {:ok, map()} | {:error, :invalid_thread_metadata}
   defp decode_thread_metadata(binary) do
