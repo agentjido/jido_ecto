@@ -17,7 +17,13 @@ end
 
 ## 2. Add the storage tables
 
-Create a repo migration that provisions the checkpoint, thread, and thread
+Generate a migration in your application:
+
+```bash
+mix ecto.gen.migration create_jido_storage
+```
+
+Then update that migration to provision the checkpoint, thread, and thread
 entry tables:
 
 ```elixir
@@ -33,6 +39,15 @@ end
 
 Pass an explicit schema version so the migration remains reproducible even if
 future package releases add newer storage layouts.
+
+For PostgreSQL schemas, pass a prefix and `jido_ecto` will create it if needed:
+
+```elixir
+def change do
+  require Jido.Ecto.Migrations
+  Jido.Ecto.Migrations.create_storage_tables(version: 1, prefix: "jido")
+end
+```
 
 ## 3. Configure Jido storage
 

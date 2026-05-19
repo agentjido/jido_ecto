@@ -12,6 +12,7 @@ end
 
 if repo_config[:adapter] == Ecto.Adapters.Postgres do
   for statement <- [
+        "DROP TABLE IF EXISTS schema_migrations",
         "DROP TABLE IF EXISTS jido_thread_entries",
         "DROP TABLE IF EXISTS jido_threads",
         "DROP TABLE IF EXISTS jido_checkpoints"

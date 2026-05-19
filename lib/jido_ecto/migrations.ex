@@ -16,7 +16,8 @@ defmodule Jido.Ecto.Migrations do
   ## Options
 
   - `:version` - required storage schema version
-  - `:prefix` - database prefix or schema name passed through to Ecto
+  - `:prefix` - database prefix or schema name passed through to Ecto.
+    PostgreSQL schemas are created automatically when a prefix is provided.
   """
 
   @current_storage_schema_version 1
@@ -43,6 +44,13 @@ defmodule Jido.Ecto.Migrations do
     end
 
     quote bind_quoted: [prefix: prefix] do
+      if Jido.Ecto.Migrations.prefix?(prefix) do
+        execute(
+          fn -> Jido.Ecto.Migrations.ensure_prefix_schema!(repo(), prefix) end,
+          fn -> :ok end
+        )
+      end
+
       create table(:jido_checkpoints, primary_key: false, prefix: prefix) do
         add(:key_hash, :string, primary_key: true)
         add(:key_term, :binary, null: false)
@@ -80,5 +88,32 @@ defmodule Jido.Ecto.Migrations do
       create(unique_index(:jido_thread_entries, [:thread_id, :seq], prefix: prefix))
       create(index(:jido_thread_entries, [:thread_id], prefix: prefix))
     end
+  end
+
+  @doc false
+  @spec prefix?(String.t() | atom() | nil) :: boolean()
+  def prefix?(prefix), do: prefix not in [nil, ""]
+
+  @doc false
+  @spec ensure_prefix_schema!(module(), String.t() | atom() | nil) :: :ok
+  def ensure_prefix_schema!(_repo, prefix) when prefix in [nil, ""], do: :ok
+
+  def ensure_prefix_schema!(repo, prefix) do
+    if repo.__adapter__() == Ecto.Adapters.Postgres do
+      repo.query!("CREATE SCHEMA IF NOT EXISTS #{quote_postgres_identifier(prefix)}", [], log: false)
+    end
+
+    :ok
+  end
+
+  defp quote_postgres_identifier(prefix) when is_atom(prefix) do
+    prefix
+    |> Atom.to_string()
+    |> quote_postgres_identifier()
+  end
+
+  defp quote_postgres_identifier(prefix) when is_binary(prefix) do
+    escaped = String.replace(prefix, ~s("), ~s(""))
+    ~s("#{escaped}")
   end
 end

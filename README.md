@@ -52,7 +52,13 @@ Your host app must already have:
 
 ### 1. Create the storage migration
 
-Create the required tables in one of your repo migrations:
+Generate a migration in your application:
+
+```bash
+mix ecto.gen.migration create_jido_storage
+```
+
+Then create the required tables in that migration:
 
 ```elixir
 defmodule MyApp.Repo.Migrations.CreateJidoStorage do
@@ -76,6 +82,8 @@ def change do
   Jido.Ecto.Migrations.create_storage_tables(version: 1, prefix: "jido")
 end
 ```
+
+For PostgreSQL, `jido_ecto` creates the schema if it does not already exist.
 
 ### 2. Run the migration
 

@@ -15,7 +15,7 @@ case test_db do
       hostname: System.get_env("PGHOST", "127.0.0.1"),
       port: String.to_integer(System.get_env("PGPORT", "5432")),
       database: System.get_env("PGDATABASE", "jido_ecto_test"),
-      pool_size: 1
+      pool_size: 2
 
   _ ->
     config :jido_ecto, Jido.Ecto.TestRepo,
