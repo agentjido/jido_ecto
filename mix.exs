@@ -1,7 +1,7 @@
 defmodule JidoEcto.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "1.0.0"
   @source_url "https://github.com/agentjido/jido_ecto"
   @description "Ecto-backed storage and persistence adapters for Jido."
 
@@ -68,7 +68,7 @@ defmodule JidoEcto.MixProject do
       # Runtime
       {:ecto, "~> 3.13"},
       {:ecto_sql, "~> 3.13"},
-      {:jido, "~> 2.1"},
+      {:jido, "~> 2.3"},
 
       # Dev/Test quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
