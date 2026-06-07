@@ -31,3 +31,7 @@ Use Conventional Commits, for example:
 - `feat(storage): add ecto-backed checkpoint schema`
 - `fix(storage): normalize thread conflict handling`
 - `test(persist): add hibernate and thaw coverage`
+
+## Release Hygiene
+
+- Do not modify `CHANGELOG.md`; release notes are generated from Git history during release, so keep changes focused on proper Conventional Commits.
