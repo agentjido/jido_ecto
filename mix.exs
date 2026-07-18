@@ -66,20 +66,20 @@ defmodule JidoEcto.MixProject do
   defp deps do
     [
       # Runtime
-      {:ecto, "~> 3.13"},
-      {:ecto_sql, "~> 3.13"},
-      {:jido, "~> 2.3"},
+      {:ecto, "~> 3.14.1"},
+      {:ecto_sql, "~> 3.14.0"},
+      {:jido, "~> 2.3.2"},
 
       # Dev/Test quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:doctor, "~> 0.21", only: :dev, runtime: false},
-      {:postgrex, "~> 0.20", only: :test},
-      {:ecto_sqlite3, "~> 0.21", only: :test},
+      {:doctor, "~> 0.23", only: :dev, runtime: false},
+      {:postgrex, "~> 0.22.3", only: :test},
+      {:ecto_sqlite3, "~> 0.24.1", only: :test},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test]},
-      {:git_hooks, "~> 0.8", only: [:dev, :test], runtime: false},
-      {:git_ops, "~> 2.9", only: :dev, runtime: false}
+      {:git_hooks, "~> 0.9", only: [:dev, :test], runtime: false},
+      {:git_ops, "~> 2.10", only: :dev, runtime: false}
     ]
   end
 
