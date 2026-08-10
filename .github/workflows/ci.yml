@@ -26,7 +26,7 @@ jobs:
           elixir-version: "1.19"
 
       - name: Cache deps and build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -62,7 +62,7 @@ jobs:
           elixir-version: ${{ matrix.elixir }}
 
       - name: Cache deps and build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -113,7 +113,7 @@ jobs:
           elixir-version: "1.19"
 
       - name: Cache deps and build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -143,7 +143,7 @@ jobs:
           elixir-version: "1.19"
 
       - name: Cache deps and build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
