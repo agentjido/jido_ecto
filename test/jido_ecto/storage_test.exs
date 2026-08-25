@@ -106,6 +106,22 @@ defmodule Jido.Ecto.StorageTest do
     assert TestRepo.aggregate(ThreadEntryRecord, :count, :thread_id) == 1
   end
 
+  test "keeps append timestamps monotonic with persisted state", %{storage_opts: storage_opts} do
+    thread_id = unique_id("monotonic-timestamp-thread")
+
+    assert {:ok, created} =
+             Storage.append_thread(thread_id, [%{kind: :note, payload: %{n: 1}}], storage_opts)
+
+    future_timestamp = System.system_time(:millisecond) + 60_000
+    {1, nil} = TestRepo.update_all(ThreadRecord, set: [updated_at_ms: future_timestamp])
+
+    assert {:ok, appended} =
+             Storage.append_thread(thread_id, [%{kind: :note, payload: %{n: 2}}], storage_opts)
+
+    assert appended.created_at == created.created_at
+    assert appended.updated_at >= future_timestamp
+  end
+
   test "empty append creates metadata but load_thread still reports not found", %{storage_opts: storage_opts} do
     thread_id = unique_id("empty-thread")
 
