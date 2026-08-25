@@ -1,6 +1,14 @@
 defmodule Jido.Ecto.StorageTest do
   use Jido.Ecto.Case, async: false
 
+  use JidoTest.StorageCheckpointConformance,
+    adapter: Jido.Ecto.Storage,
+    setup: quote(do: [repo: Jido.Ecto.TestRepo])
+
+  use JidoTest.StorageThreadConformance,
+    adapter: Jido.Ecto.Storage,
+    setup: quote(do: [repo: Jido.Ecto.TestRepo])
+
   alias Jido.Ecto.Storage.{ThreadEntryRecord, ThreadRecord}
   alias Jido.Ecto.Support.{OrphanedEntriesRepo, RaisingRepo, RetryRepo, TransactionErrorRepo}
   alias Jido.Thread.Entry
