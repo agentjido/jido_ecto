@@ -196,10 +196,11 @@ defmodule Jido.Ecto.Storage do
   @spec append_thread_tx(module(), keyword(), String.t(), [Entry.t() | map()], integer() | nil, map()) ::
           Thread.t() | no_return()
   defp append_thread_tx(repo, query_opts, thread_id, entries, expected_rev, initial_metadata) do
-    now = now_ms()
-
-    with {:ok, state} <- load_thread_state(repo, query_opts, thread_id),
+    with {:ok, state} <- load_thread_state(repo, query_opts, thread_id, lock: "FOR UPDATE"),
          :ok <- validate_expected_rev(expected_rev, state.rev) do
+      # A wall clock can move backwards between the state read and this
+      # append. Keep persisted timestamps monotonic across all adapters.
+      now = max(now_ms(), state.updated_at_ms)
       prepared_entries = EntryNormalizer.normalize_many(entries, state.rev, now)
       next_entries = state.entries ++ prepared_entries
       metadata = if state.persisted?, do: state.metadata, else: initial_metadata
@@ -255,9 +256,16 @@ defmodule Jido.Ecto.Storage do
     :ok
   end
 
-  @spec load_thread_state(module(), keyword(), String.t()) :: {:ok, thread_state()} | {:error, term()}
-  defp load_thread_state(repo, query_opts, thread_id) do
-    record = repo.get(ThreadRecord, thread_id, query_opts)
+  @spec load_thread_state(module(), keyword(), String.t(), keyword()) ::
+          {:ok, thread_state()} | {:error, term()}
+  defp load_thread_state(repo, query_opts, thread_id, opts \\ []) do
+    record =
+      if not is_nil(Keyword.get(opts, :lock)) and postgres_repo?(repo) do
+        from(t in ThreadRecord, where: t.thread_id == ^thread_id, lock: "FOR UPDATE")
+        |> repo.one(query_opts)
+      else
+        repo.get(ThreadRecord, thread_id, query_opts)
+      end
 
     case record do
       nil ->
@@ -514,6 +522,11 @@ defmodule Jido.Ecto.Storage do
 
   @spec now_ms() :: integer()
   defp now_ms, do: System.system_time(:millisecond)
+
+  @spec postgres_repo?(module()) :: boolean()
+  defp postgres_repo?(repo) do
+    function_exported?(repo, :__adapter__, 0) and repo.__adapter__() == Ecto.Adapters.Postgres
+  end
 
   @spec transact(module(), (-> term()), keyword()) :: {:ok, term()} | {:error, term()}
   defp transact(repo, fun, opts) do
