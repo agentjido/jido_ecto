@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Draft dependency: https://github.com/agentjido/jido/pull/323
+  JIDO_CONFORMANCE_REF: 4070d8972c3ac68a0f22f8c2b9c29c6cd8f9a7e8
+
 jobs:
   quality:
     name: Quality (Elixir 1.19 / OTP 28)
@@ -45,6 +49,8 @@ jobs:
   test:
     name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
+    env:
+      JIDO_STORAGE_CONFORMANCE_ROOT: ${{ github.workspace }}/jido/test/support
     strategy:
       fail-fast: false
       matrix:
@@ -54,6 +60,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Checkout Jido conformance helpers
+        uses: actions/checkout@v7
+        with:
+          repository: agentjido/jido
+          path: jido
+          ref: ${{ env.JIDO_CONFORMANCE_REF }}
 
       - name: Setup Elixir
         uses: erlef/setup-beam@v1
@@ -95,6 +108,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      JIDO_STORAGE_CONFORMANCE_ROOT: ${{ github.workspace }}/jido/test/support
       JIDO_ECTO_TEST_DB: postgres
       PGHOST: 127.0.0.1
       PGPORT: "5432"
@@ -105,6 +119,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Checkout Jido conformance helpers
+        uses: actions/checkout@v7
+        with:
+          repository: agentjido/jido
+          path: jido
+          ref: ${{ env.JIDO_CONFORMANCE_REF }}
 
       - name: Setup Elixir
         uses: erlef/setup-beam@v1
@@ -131,10 +152,27 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    env:
+      JIDO_STORAGE_CONFORMANCE_ROOT: ${{ github.workspace }}/jido/test/support
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Validate pinned Jido conformance ref
+        shell: bash
+        run: |
+          if [[ ! "$JIDO_CONFORMANCE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "JIDO_CONFORMANCE_REF must be configured as an exact 40-character Jido commit SHA."
+            exit 1
+          fi
+
+      - name: Checkout Jido conformance helpers
+        uses: actions/checkout@v7
+        with:
+          repository: agentjido/jido
+          path: jido
+          ref: ${{ env.JIDO_CONFORMANCE_REF }}
 
       - name: Setup Elixir
         uses: erlef/setup-beam@v1
