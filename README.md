@@ -1,5 +1,11 @@
 # Jido Ecto
 
+> [!IMPORTANT]
+> This package is planned for deprecation with Jido 3.x. Its functionality will
+> move into Jido core as an opt-in integration, so unused code is not included
+> in production builds. Track the transition in
+> [agentjido/jido#368](https://github.com/agentjido/jido/issues/368).
+
 [![Hex.pm](https://img.shields.io/hexpm/v/jido_ecto.svg)](https://hex.pm/packages/jido_ecto)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/jido_ecto/)
 [![CI](https://github.com/agentjido/jido_ecto/actions/workflows/ci.yml/badge.svg)](https://github.com/agentjido/jido_ecto/actions/workflows/ci.yml)
