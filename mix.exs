@@ -68,8 +68,7 @@ defmodule JidoEcto.MixProject do
       # Runtime
       {:ecto, "~> 3.13"},
       {:ecto_sql, "~> 3.13"},
-      {:jido,
-       git: "https://github.com/agentjido/jido.git", ref: "0c8853bf451a40330b7192c9d2200a06f9c61261", override: true},
+      {:jido, "~> 2.4", override: true},
 
       # Dev/Test quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
