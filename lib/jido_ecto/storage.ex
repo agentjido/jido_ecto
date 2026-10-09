@@ -30,7 +30,7 @@ defmodule Jido.Ecto.Storage do
 
   @behaviour Jido.Storage
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, subquery: 1]
 
   alias Jido.Ecto.Storage.{CheckpointRecord, ThreadEntryRecord, ThreadRecord}
   alias Jido.Thread
@@ -269,7 +269,7 @@ defmodule Jido.Ecto.Storage do
 
     case record do
       nil ->
-        if thread_entries_exist?(repo, query_opts, thread_id) do
+        if orphaned_thread_entries?(repo, query_opts, thread_id) do
           {:error, :orphaned_thread_entries}
         else
           now = now_ms()
@@ -302,11 +302,15 @@ defmodule Jido.Ecto.Storage do
     end
   end
 
-  @spec thread_entries_exist?(module(), keyword(), String.t()) :: boolean()
-  defp thread_entries_exist?(repo, query_opts, thread_id) do
+  @spec orphaned_thread_entries?(module(), keyword(), String.t()) :: boolean()
+  defp orphaned_thread_entries?(repo, query_opts, thread_id) do
+    thread_query = from(t in ThreadRecord, where: t.thread_id == ^thread_id, select: 1)
+
+    # A creator can commit after the missing-row read. Check both tables in one
+    # statement so entries with a newly committed parent are not reported as orphaned.
     query =
       from(e in ThreadEntryRecord,
-        where: e.thread_id == ^thread_id,
+        where: e.thread_id == ^thread_id and not exists(subquery(thread_query)),
         select: e.thread_id,
         limit: 1
       )

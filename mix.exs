@@ -68,7 +68,7 @@ defmodule JidoEcto.MixProject do
       # Runtime
       {:ecto, "~> 3.13"},
       {:ecto_sql, "~> 3.13"},
-      {:jido, "~> 2.3"},
+      {:jido, "~> 2.4"},
 
       # Dev/Test quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

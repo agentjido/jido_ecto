@@ -7,6 +7,32 @@ if Application.compile_env(:jido_ecto, [Jido.Ecto.TestRepo, :adapter]) == Ecto.A
     alias Jido.Ecto.Storage.{ThreadEntryRecord, ThreadRecord}
     alias Jido.Thread.Entry
 
+    defmodule ConcurrentCreateRepo do
+      @moduledoc false
+
+      alias Jido.Ecto.TestRepo
+
+      defdelegate __adapter__(), to: TestRepo
+      defdelegate transaction(fun, opts), to: TestRepo
+      defdelegate rollback(reason), to: TestRepo
+      defdelegate all(query, opts), to: TestRepo
+      defdelegate insert_all(schema, rows, opts), to: TestRepo
+      defdelegate update_all(query, updates, opts), to: TestRepo
+
+      def one(query, opts) do
+        record = TestRepo.one(query, opts)
+
+        if is_nil(record) do
+          case Process.delete({__MODULE__, :on_missing}) do
+            fun when is_function(fun, 0) -> fun.()
+            nil -> :ok
+          end
+        end
+
+        record
+      end
+    end
+
     @append_count 24
     @repeat_count 3
     @task_timeout 30_000
@@ -46,6 +72,36 @@ if Application.compile_env(:jido_ecto, [Jido.Ecto.TestRepo, :adapter]) == Ecto.A
       assert Enum.map(thread.entries, & &1.seq) == Enum.to_list(0..(@append_count - 1))
       assert Enum.map(thread.entries, & &1.payload.n) |> Enum.sort() == Enum.to_list(1..@append_count)
       assert_journal_is_complete!(thread_id, @append_count)
+    end
+
+    test "first append retries when another writer commits after the missing-row read", %{
+      storage_opts: storage_opts
+    } do
+      thread_id = unique_id("postgres-first-write-between-reads")
+
+      Process.put({ConcurrentCreateRepo, :on_missing}, fn ->
+        task =
+          Task.async(fn ->
+            Storage.append_thread(
+              thread_id,
+              [%{kind: :note, payload: %{writer: :creator}}],
+              storage_opts
+            )
+          end)
+
+        assert {:ok, _thread} = Task.await(task, @task_timeout)
+      end)
+
+      assert {:ok, thread} =
+               Storage.append_thread(
+                 thread_id,
+                 [%{kind: :note, payload: %{writer: :second}}],
+                 Keyword.put(storage_opts, :repo, ConcurrentCreateRepo)
+               )
+
+      assert thread.rev == 2
+      assert Enum.map(thread.entries, & &1.payload.writer) == [:creator, :second]
+      assert_journal_is_complete!(thread_id, 2)
     end
 
     test "concurrent writers with identical expected_rev have exactly one winner", %{
