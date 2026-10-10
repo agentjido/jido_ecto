@@ -46,6 +46,9 @@ jobs:
       - name: Run quality checks
         run: mix quality
 
+      - name: Build HTML and Markdown documentation
+        run: mix docs -f html -f markdown
+
   test:
     name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
