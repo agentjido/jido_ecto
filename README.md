@@ -214,6 +214,10 @@ mix test
 Releases are driven from `.github/workflows/release.yml` via GitHub Actions.
 Do not publish from ad hoc local commands.
 
+## Local Documentation
+
+Run `mix docs` to generate HTML and Markdown documentation in `doc/`, including Markdown pages and `llms.txt`.
+
 ## License
 
 Apache-2.0
