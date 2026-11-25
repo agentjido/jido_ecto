@@ -66,6 +66,7 @@ defmodule JidoEcto.MixProject do
   defp deps do
     [
       # Runtime
+      {:db_connection, "~> 2.10 and >= 2.10.3"},
       {:ecto, "~> 3.13"},
       {:ecto_sql, "~> 3.13"},
       {:jido, "~> 2.4"},
