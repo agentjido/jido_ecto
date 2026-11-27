@@ -1,7 +1,7 @@
 defmodule JidoEcto.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.0.1"
   @source_url "https://github.com/agentjido/jido_ecto"
   @description "Ecto-backed storage and persistence adapters for Jido."
 

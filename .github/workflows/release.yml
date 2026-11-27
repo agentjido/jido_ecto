@@ -3,13 +3,32 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: "Release operation: auto, prepare, or publish"
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - prepare
+          - publish
+      tag_name:
+        description: "Optional v-prefixed tag for publishing"
+        required: false
+        type: string
+        default: ""
+      version_override:
+        description: "Optional bare SemVer override (for example 1.2.3, not v1.2.3)"
+        required: false
+        type: string
+        default: ""
       dry_run:
         description: "Dry run (no git push, no tag, no GitHub release, no Hex publish)"
         required: false
         type: boolean
         default: false
       hex_dry_run:
-        description: "Hex dry run only (run all git/release steps, but skip actual Hex publish)"
+        description: "Dry-run Hex publish for an existing tag, or preview release preparation"
         required: false
         type: boolean
         default: false
@@ -20,14 +39,29 @@ on:
         default: false
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
   release:
     name: Release
-    uses: agentjido/github-actions/.github/workflows/elixir-release.yml@main
+    uses: agentjido/github-actions/.github/workflows/jido-release.yml@v5
     with:
-      dry_run: ${{ inputs.dry_run }}
+      operation: ${{ inputs.operation || 'auto' }}
+      tag_name: ${{ inputs.tag_name || '' }}
+      dry_run: ${{ inputs.dry_run || (inputs.hex_dry_run && inputs.operation != 'publish') }}
       hex_dry_run: ${{ inputs.hex_dry_run }}
       skip_tests: ${{ inputs.skip_tests }}
-    secrets: inherit
+      version_override: ${{ inputs.version_override }}
+      preflight_command: |
+        set -euo pipefail
+        mix hex.audit
+        conformance_checkout="$(mktemp -d)"
+        trap 'rm -rf "$conformance_checkout"' EXIT
+        git init --quiet "$conformance_checkout"
+        # Use the same conformance commit as ci.yml.
+        git -C "$conformance_checkout" fetch --quiet --depth=1 https://github.com/agentjido/jido.git 4070d8972c3ac68a0f22f8c2b9c29c6cd8f9a7e8
+        git -C "$conformance_checkout" checkout --quiet --detach FETCH_HEAD
+        JIDO_STORAGE_CONFORMANCE_ROOT="$conformance_checkout/test/support" MIX_ENV=test mix test
+    secrets:
+      HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
